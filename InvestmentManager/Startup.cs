@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using NLog.Extensions.Logging;
 
@@ -39,7 +40,7 @@ namespace InvestmentManager
             });
 
             services.AddMvc(options => options.EnableEndpointRouting = false).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
-            services.AddSingleton<IConfiguration>(this.Configuration);
+            services.AddSingleton(Configuration);
 
             // Configure the data access layer
             var connectionString = this.Configuration.GetConnectionString("InvestmentDatabase");
@@ -59,7 +60,13 @@ namespace InvestmentManager
             });
 
             services.AddHealthChecks()
-                .AddSqlServer(connectionString);
+                .AddSqlServer(connectionString, failureStatus: HealthStatus.Unhealthy)
+                .AddUrlGroup(
+                    new Uri($"{stockIndexServiceUrl}/api/StockIndexes"),
+                    "Stock Index Api Health Check",
+                    HealthStatus.Degraded,
+                    timeout: new TimeSpan(0, 0, 5)
+                );
         }
 
 
