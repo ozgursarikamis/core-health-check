@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using InvestmentManager.Core;
 using InvestmentManager.DataAccess.EF;
+using InvestmentManager.HealthChecks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
@@ -64,18 +65,22 @@ namespace InvestmentManager
                 loggingBuilder.AddNLog();
             });
 
+            var securityLogFilePath = Configuration["SecurityLogFilePath"];
             services.AddHealthChecks()
-                .AddSqlServer(connectionString, 
+                .AddSqlServer(connectionString,
                     failureStatus: HealthStatus.Unhealthy,
-                    tags: new []{ "ready" }
-                    )
+                    tags: new[] {"ready"}
+                )
                 .AddUrlGroup(
                     new Uri($"{stockIndexServiceUrl}/api/StockIndexes"),
                     "Stock Index Api Health Check",
                     HealthStatus.Degraded,
-                    tags: new []{ "ready" },
+                    tags: new[] {"ready"},
                     timeout: new TimeSpan(0, 0, 5)
-                );
+                )
+                .AddFilePathWrite(securityLogFilePath, HealthStatus.Degraded, tags: new[]{ "ready" })
+                .AddCheck("File Path Health Check", new FilePathWriteHealthCheck(securityLogFilePath),
+                    HealthStatus.Unhealthy);
         }
 
 
@@ -105,8 +110,8 @@ namespace InvestmentManager
                         [HealthStatus.Degraded] = StatusCodes.Status500InternalServerError,
                         [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
                     },
-                    ResponseWriter = WriteHealthCheckResponse,
-                    Predicate = check => check.Tags.Contains("readty"),
+                    ResponseWriter = WriteHealthCheckReadyResponse,
+                    Predicate = check => check.Tags.Contains("ready"),
                     AllowCachingResponses = false
                 });
 
@@ -132,26 +137,19 @@ namespace InvestmentManager
             return context.Response.WriteAsync(json.ToString(Formatting.Indented));
         }
 
-        private Task WriteHealthCheckResponse(HttpContext context, HealthReport result)
+        private Task WriteHealthCheckReadyResponse(HttpContext context, HealthReport result)
         {
             context.Response.ContentType = "application/json";
 
             var json = new JObject(
                 new JProperty("OverallStatus", result.Status.ToString()),
                 new JProperty("TotalChecksDuration", result.TotalDuration.ToString("c")),
-                new JProperty("DependencyHealthChecks",
-                    new JObject(result.Entries.Select(dicItem =>
-                            new JProperty(dicItem.Key, new JObject(
-                                    new JProperty("Status", dicItem.Value.Status.ToString()),
-                                    new JProperty("Description", dicItem.Value.Description),
-                                    new JProperty("Data", new JObject(dicItem.Value.Data.Select(
-                                        p => new JProperty(p.Key, p.Value))))
-                                )
-                            )
-                        )
-                    )
-                )
-            );
+                new JProperty("DependencyHealthChecks", new JObject(result.Entries.Select(dicItem =>
+                    new JProperty(dicItem.Key, new JObject(
+                        new JProperty("Status", dicItem.Value.Status.ToString()),
+                        new JProperty("Description", dicItem.Value.Description),
+                        new JProperty("Data", new JObject(dicItem.Value.Data.Select(
+                            p => new JProperty(p.Key, p.Value))))))))));
             return context.Response.WriteAsync(json.ToString(Formatting.Indented));
         }
     }
