@@ -57,6 +57,8 @@ namespace InvestmentManager
                 loggingBuilder.AddDebug();
                 loggingBuilder.AddNLog();
             });
+
+            services.AddHealthChecks();
         }
 
 
@@ -74,6 +76,16 @@ namespace InvestmentManager
                     name: "default",
                     template: "{controller=Home}/{action=Index}/{id?}");
             });
+
+            app.UseRouting();
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapHealthChecks("/health")
+                    // .RequireHost("www.test.com:5000")
+                    ;
+            });
+
+            //app.UseHealthChecks("/health");
         }
     }
 }
