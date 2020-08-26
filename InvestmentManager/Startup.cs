@@ -65,11 +65,15 @@ namespace InvestmentManager
             });
 
             services.AddHealthChecks()
-                .AddSqlServer(connectionString, failureStatus: HealthStatus.Unhealthy)
+                .AddSqlServer(connectionString, 
+                    failureStatus: HealthStatus.Unhealthy,
+                    tags: new []{ "ready" }
+                    )
                 .AddUrlGroup(
                     new Uri($"{stockIndexServiceUrl}/api/StockIndexes"),
                     "Stock Index Api Health Check",
                     HealthStatus.Degraded,
+                    tags: new []{ "ready" },
                     timeout: new TimeSpan(0, 0, 5)
                 );
         }
@@ -93,7 +97,7 @@ namespace InvestmentManager
             app.UseRouting();
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapHealthChecks("/health", new HealthCheckOptions
+                endpoints.MapHealthChecks("/health/ready", new HealthCheckOptions
                 {
                     ResultStatusCodes =
                     {
@@ -101,11 +105,31 @@ namespace InvestmentManager
                         [HealthStatus.Degraded] = StatusCodes.Status500InternalServerError,
                         [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
                     },
-                    ResponseWriter = WriteHealthCheckResponse
+                    ResponseWriter = WriteHealthCheckResponse,
+                    Predicate = check => check.Tags.Contains("readty"),
+                    AllowCachingResponses = false
+                });
+
+                endpoints.MapHealthChecks("/health/live", new HealthCheckOptions
+                {
+                    Predicate = check => !check.Tags.Contains("ready"),
+                    ResponseWriter = WriteHealthCheckLiveResponse,
+                    AllowCachingResponses = false
                 });
             });
 
             //app.UseHealthChecks("/health");
+        }
+
+        private Task WriteHealthCheckLiveResponse(HttpContext context, HealthReport result)
+        {
+            context.Response.ContentType = "application/json";
+
+            var json = new JObject(
+                new JProperty("OverallStatus", result.Status.ToString()),
+                new JProperty("TotalChecksDuration", result.TotalDuration.ToString("c"))
+            );
+            return context.Response.WriteAsync(json.ToString(Formatting.Indented));
         }
 
         private Task WriteHealthCheckResponse(HttpContext context, HealthReport result)
@@ -128,8 +152,7 @@ namespace InvestmentManager
                     )
                 )
             );
-            return context.Response.WriteAsync(
-                json.ToString(Formatting.Indented));
+            return context.Response.WriteAsync(json.ToString(Formatting.Indented));
         }
     }
 }
