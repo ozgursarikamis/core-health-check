@@ -39,7 +39,5 @@ namespace StockIndexWebService.Controllers
 
             return Ok(models);
         }
-
-     
     }
 }

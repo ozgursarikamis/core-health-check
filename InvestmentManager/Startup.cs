@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
 using InvestmentManager.Core;
 using InvestmentManager.DataAccess.EF;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +12,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using NLog.Extensions.Logging;
 
 namespace InvestmentManager
@@ -88,12 +93,43 @@ namespace InvestmentManager
             app.UseRouting();
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapHealthChecks("/health")
-                    // .RequireHost("www.test.com:5000")
-                    ;
+                endpoints.MapHealthChecks("/health", new HealthCheckOptions
+                {
+                    ResultStatusCodes =
+                    {
+                        [HealthStatus.Healthy] = StatusCodes.Status200OK,
+                        [HealthStatus.Degraded] = StatusCodes.Status500InternalServerError,
+                        [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+                    },
+                    ResponseWriter = WriteHealthCheckResponse
+                });
             });
 
             //app.UseHealthChecks("/health");
+        }
+
+        private Task WriteHealthCheckResponse(HttpContext context, HealthReport result)
+        {
+            context.Response.ContentType = "application/json";
+
+            var json = new JObject(
+                new JProperty("OverallStatus", result.Status.ToString()),
+                new JProperty("TotalChecksDuration", result.TotalDuration.ToString("c")),
+                new JProperty("DependencyHealthChecks",
+                    new JObject(result.Entries.Select(dicItem =>
+                            new JProperty(dicItem.Key, new JObject(
+                                    new JProperty("Status", dicItem.Value.Status.ToString()),
+                                    new JProperty("Description", dicItem.Value.Description),
+                                    new JProperty("Data", new JObject(dicItem.Value.Data.Select(
+                                        p => new JProperty(p.Key, p.Value))))
+                                )
+                            )
+                        )
+                    )
+                )
+            );
+            return context.Response.WriteAsync(
+                json.ToString(Formatting.Indented));
         }
     }
 }
