@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Data.SqlClient;
 using InvestmentManager.Core;
 using InvestmentManager.DataAccess.EF;
 using Microsoft.AspNetCore.Builder;
@@ -8,7 +7,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using NLog.Extensions.Logging;
 
@@ -61,19 +59,7 @@ namespace InvestmentManager
             });
 
             services.AddHealthChecks()
-                .AddCheck("SQL Check", () =>
-                {
-                    using var connection = new SqlConnection(connectionString);
-                    try
-                    {
-                        connection.Open();
-                        return HealthCheckResult.Healthy();
-                    }
-                    catch (SqlException e)
-                    {
-                        return HealthCheckResult.Unhealthy(e.Message);
-                    }
-                });
+                .AddSqlServer(connectionString);
         }
 
 
