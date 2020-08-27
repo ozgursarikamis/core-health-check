@@ -5,6 +5,7 @@ using HealthChecks.UI.Client;
 using InvestmentManager.Core;
 using InvestmentManager.DataAccess.EF;
 using InvestmentManager.HealthChecks;
+using InvestmentManager.QueueMessage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
@@ -50,12 +51,12 @@ namespace InvestmentManager
             services.AddSingleton(Configuration);
 
             // Configure the data access layer
-            var connectionString = this.Configuration.GetConnectionString("InvestmentDatabase");
+            var connectionString = Configuration.GetConnectionString("InvestmentDatabase");
 
             services.RegisterEfDataAccessClasses(connectionString, loggerFactory);  
 
             // For Application Services
-            string stockIndexServiceUrl = this.Configuration["StockIndexServiceUrl"];
+            string stockIndexServiceUrl = Configuration["StockIndexServiceUrl"];
             services.ConfigureStockIndexServiceHttpClientWithoutProfiler(stockIndexServiceUrl);
             services.ConfigureInvestmentManagerServices(stockIndexServiceUrl);
 
@@ -83,6 +84,18 @@ namespace InvestmentManager
                 .AddCheck("File Path Health Check", new FilePathWriteHealthCheck(securityLogFilePath),
                     HealthStatus.Unhealthy);
             services.AddHealthChecksUI();
+
+            services.Configure<HealthCheckPublisherOptions>(options =>
+            {
+                options.Delay = TimeSpan.FromSeconds(5);
+                options.Period = TimeSpan.FromSeconds(10);
+                options.Predicate = check => check.Tags.Contains("ready");
+                options.Timeout = TimeSpan.FromSeconds(20);
+            });
+
+            services.AddSingleton<IHealthCheckPublisher, HealthCheckPublisher>();
+            services.AddTransient<IQueueMessage, RabbitMqMessage>();
+
         }
 
 
@@ -102,6 +115,10 @@ namespace InvestmentManager
             });
 
             app.UseRouting();
+
+            app.UseAuthentication();
+            app.UseAuthorization();
+
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapHealthChecks("/health/ready", new HealthCheckOptions
@@ -122,12 +139,14 @@ namespace InvestmentManager
                     Predicate = check => !check.Tags.Contains("ready"),
                     ResponseWriter = WriteHealthCheckLiveResponse,
                     AllowCachingResponses = false
-                });
+                }).RequireAuthorization();
+
                 endpoints.MapHealthChecks("/healthui", new HealthCheckOptions
-                {
-                    Predicate = _ => true,
-                    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
-                });
+                    {
+                        Predicate = _ => true,
+                        ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+                    })
+                    .RequireAuthorization();
             });
 
             app.UseHealthChecksUI(); 
