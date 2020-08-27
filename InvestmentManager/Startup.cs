@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthChecks.UI.Client;
 using InvestmentManager.Core;
 using InvestmentManager.DataAccess.EF;
 using InvestmentManager.HealthChecks;
@@ -54,7 +55,7 @@ namespace InvestmentManager
             services.RegisterEfDataAccessClasses(connectionString, loggerFactory);  
 
             // For Application Services
-            String stockIndexServiceUrl = this.Configuration["StockIndexServiceUrl"];
+            string stockIndexServiceUrl = this.Configuration["StockIndexServiceUrl"];
             services.ConfigureStockIndexServiceHttpClientWithoutProfiler(stockIndexServiceUrl);
             services.ConfigureInvestmentManagerServices(stockIndexServiceUrl);
 
@@ -81,6 +82,7 @@ namespace InvestmentManager
                 .AddFilePathWrite(securityLogFilePath, HealthStatus.Degraded, tags: new[]{ "ready" })
                 .AddCheck("File Path Health Check", new FilePathWriteHealthCheck(securityLogFilePath),
                     HealthStatus.Unhealthy);
+            services.AddHealthChecksUI();
         }
 
 
@@ -121,9 +123,14 @@ namespace InvestmentManager
                     ResponseWriter = WriteHealthCheckLiveResponse,
                     AllowCachingResponses = false
                 });
+                endpoints.MapHealthChecks("/healthui", new HealthCheckOptions
+                {
+                    Predicate = _ => true,
+                    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+                });
             });
 
-            //app.UseHealthChecks("/health");
+            app.UseHealthChecksUI(); 
         }
 
         private Task WriteHealthCheckLiveResponse(HttpContext context, HealthReport result)
