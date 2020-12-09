@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Linq;
 using InvestmentManager.Core.DataAccess;
 using InvestmentManager.Core.Services;
 using InvestmentManager.Models;
@@ -16,22 +13,22 @@ namespace InvestmentManager.Controllers
         public InvestmentAccountsController(ITradeDateRepository tradeDateRepository, 
             IInvestmentAccountRepository accountRepository, RateOfReturnService rateOfReturnService)
         {
-            this.tradeDateRepository = tradeDateRepository;
-            this.accountRepository = accountRepository;
-            this.rateOfReturnService = rateOfReturnService;
+            _tradeDateRepository = tradeDateRepository;
+            _accountRepository = accountRepository;
+            _rateOfReturnService = rateOfReturnService;
         }
 
 
-        private ITradeDateRepository tradeDateRepository;
-        private IInvestmentAccountRepository accountRepository;
-        private RateOfReturnService rateOfReturnService;
+        private readonly ITradeDateRepository _tradeDateRepository;
+        private readonly IInvestmentAccountRepository _accountRepository;
+        private readonly RateOfReturnService _rateOfReturnService;
 
         // GET: InvestmentAccounts
         public ActionResult Index()
         {
-            var currentTradeDate = tradeDateRepository.GetLatestTradeDate();
+            var currentTradeDate = _tradeDateRepository.GetLatestTradeDate();
 
-            var accounts = this.accountRepository.LoadInvestmentAccounts(currentTradeDate).ToList();
+            var accounts = this._accountRepository.LoadInvestmentAccounts(currentTradeDate).ToList();
 
             return View(accounts);
         }
@@ -40,12 +37,12 @@ namespace InvestmentManager.Controllers
         [Route("[controller]/[action]/{accountNumber}")]
         public ActionResult Details(string accountNumber)
         {
-            var currentTradeDate = tradeDateRepository.GetLatestTradeDate();
+            var currentTradeDate = _tradeDateRepository.GetLatestTradeDate();
 
-            var account = this.accountRepository.LoadInvestmentAccount(accountNumber, currentTradeDate);
+            var account = this._accountRepository.LoadInvestmentAccount(accountNumber, currentTradeDate);
 
 
-            var performance = rateOfReturnService.CalculatePerformance(accountNumber);
+            var performance = _rateOfReturnService.CalculatePerformance(accountNumber);
 
             var viewModel = new InvestmentAccountDetailsModel()
             {
